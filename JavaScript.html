@@ -1,0 +1,448 @@
+<script>
+// ============================================================
+//  JavaScript.html — Client-side: CRUD + UI logic
+//  All server calls use google.script.run with explicit
+//  success/failure handlers — zero silent errors.
+// ============================================================
+
+// ── In-memory cache (populated on load) ──────────────────────
+var _customers = [];
+var _products  = [];
+var _orders    = [];
+
+// ── Bootstrap modal refs ──────────────────────────────────────
+var _customerModal, _productModal, _orderModal, _confirmModal;
+
+// ── Status select ref (for update) ───────────────────────────
+var _pendingConfirm = null; // { fn, label }
+
+// ============================================================
+//  BOOTSTRAP INIT
+// ============================================================
+document.addEventListener('DOMContentLoaded', function () {
+  _customerModal = new bootstrap.Modal(document.getElementById('customerModal'));
+  _productModal  = new bootstrap.Modal(document.getElementById('productModal'));
+  _orderModal    = new bootstrap.Modal(document.getElementById('orderModal'));
+  _confirmModal  = new bootstrap.Modal(document.getElementById('confirmModal'));
+
+  // Tab switching
+  document.querySelectorAll('#mainTabs .nav-link').forEach(function (el) {
+    el.addEventListener('click', function (e) {
+      e.preventDefault();
+      switchTab(this.dataset.tab);
+    });
+  });
+
+  // Confirm button
+  document.getElementById('confirmOkBtn').addEventListener('click', function () {
+    if (_pendingConfirm) {
+      _confirmModal.hide();
+      _pendingConfirm();
+      _pendingConfirm = null;
+    }
+  });
+
+  // Clock
+  setInterval(function () {
+    var now = new Date();
+    document.getElementById('navClock').textContent =
+      now.toLocaleDateString('vi-VN') + ' ' + now.toLocaleTimeString('vi-VN');
+  }, 1000);
+
+  // Load default tab
+  loadOrders();
+  loadCustomers();
+  loadProducts();
+});
+
+// ============================================================
+//  TAB SWITCHING
+// ============================================================
+function switchTab(name) {
+  document.querySelectorAll('.tab-pane').forEach(function (p) { p.classList.add('d-none'); });
+  document.querySelectorAll('#mainTabs .nav-link').forEach(function (el) { el.classList.remove('active'); });
+  document.getElementById('tab-' + name).classList.remove('d-none');
+  document.querySelector('[data-tab="' + name + '"]').classList.add('active');
+}
+
+// ============================================================
+//  TOAST
+// ============================================================
+function showToast(msg, type) {
+  // type: 'success' | 'danger' | 'warning' | 'info'
+  var toast = document.getElementById('mainToast');
+  var body  = document.getElementById('toastMsg');
+  toast.className = 'toast align-items-center border-0 bg-' + (type || 'success') + ' text-white';
+  body.textContent = msg;
+  var bsToast = new bootstrap.Toast(toast, { delay: 3500 });
+  bsToast.show();
+}
+
+// ============================================================
+//  CONFIRM DIALOG
+// ============================================================
+function confirm_(msg, fn) {
+  document.getElementById('confirmMsg').textContent = msg;
+  _pendingConfirm = fn;
+  _confirmModal.show();
+}
+
+// ============================================================
+//  TABLE FILTER
+// ============================================================
+function filterTable(tableId, query) {
+  var q = query.toLowerCase();
+  var rows = document.getElementById(tableId).querySelectorAll('tbody tr');
+  rows.forEach(function (tr) {
+    tr.style.display = tr.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+}
+
+function filterOrdersByStatus() {
+  var status = document.getElementById('statusFilter').value.toLowerCase();
+  var rows = document.getElementById('orderTable').querySelectorAll('tbody tr');
+  rows.forEach(function (tr) {
+    if (!status) { tr.style.display = ''; return; }
+    var badge = tr.querySelector('.badge-status');
+    tr.style.display = badge && badge.textContent.toLowerCase().includes(status) ? '' : 'none';
+  });
+}
+
+// ============================================================
+//  HELPERS
+// ============================================================
+function formatVND(n) {
+  return Number(n).toLocaleString('vi-VN') + ' ₫';
+}
+
+function statusBadge(s) {
+  var cls = { Pending:'s-pending', Paid:'s-paid', Shipped:'s-shipped', Cancelled:'s-cancelled' };
+  return '<span class="badge-status ' + (cls[s] || 's-pending') + '">' + (s || 'Pending') + '</span>';
+}
+
+function memberBadge(level) {
+  return '<span class="badge-member m-' + level + '">' + level + '</span>';
+}
+
+function setLoading(id, tableId, on) {
+  document.getElementById(id).classList.toggle('d-none', !on);
+  document.getElementById(tableId).classList.toggle('d-none', on);
+}
+
+function handleError(err) {
+  var msg = (typeof err === 'string') ? err : (err && err.message ? err.message : JSON.stringify(err));
+  showToast('❌ Lỗi: ' + msg, 'danger');
+  console.error('Error:', err);
+}
+
+// ============================================================
+//  ORDERS
+// ============================================================
+function loadOrders() {
+  setLoading('ordersLoading', 'orderTable', true);
+  google.script.run
+    .withSuccessHandler(function (data) {
+      _orders = data;
+      renderOrders(data);
+      setLoading('ordersLoading', 'orderTable', false);
+    })
+    .withFailureHandler(function (err) {
+      setLoading('ordersLoading', 'orderTable', false);
+      handleError(err);
+    })
+    .getOrders();
+}
+
+function renderOrders(orders) {
+  var tb = document.getElementById('orderBody');
+  if (!orders || orders.length === 0) {
+    tb.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">Chưa có đơn hàng nào.</td></tr>';
+    return;
+  }
+  // Build lookup maps
+  var custMap = {};
+  _customers.forEach(function (c) { custMap[c.Customer_ID] = c.Customer_Name; });
+  var prodMap = {};
+  _products.forEach(function (p) { prodMap[p.Product_ID] = p.Product_Name; });
+
+  tb.innerHTML = orders.map(function (o) {
+    return '<tr>' +
+      '<td><span class="fw-semibold text-primary">' + o.Order_ID + '</span></td>' +
+      '<td>' + (custMap[o.Customer_ID] || o.Customer_ID) + '</td>' +
+      '<td>' + (prodMap[o.Product_ID]  || o.Product_ID)  + '</td>' +
+      '<td class="text-center">' + o.Quantity + '</td>' +
+      '<td class="text-end fw-semibold">' + formatVND(o.Total_Amount) + '</td>' +
+      '<td class="text-center">' + statusBadge(o.Status) + '</td>' +
+      '<td class="text-muted small">' + o.Created_At + '</td>' +
+      '<td class="text-center">' +
+        '<div class="dropdown d-inline-block">' +
+          '<button class="btn-action btn btn-sm btn-outline-secondary dropdown-toggle py-1 px-2" data-bs-toggle="dropdown" style="font-size:12px;">Sửa</button>' +
+          '<ul class="dropdown-menu dropdown-menu-end">' +
+            ['Pending','Paid','Shipped','Cancelled'].map(function(s) {
+              return '<li><a class="dropdown-item small" href="#" onclick="changeOrderStatus(\'' + o.Order_ID + '\',\'' + s + '\');return false;">' + s + '</a></li>';
+            }).join('') +
+          '</ul>' +
+        '</div>' +
+        ' <button class="btn-action del" title="Xóa" onclick="deleteOrderRow(\'' + o.Order_ID + '\')"><i class="bi bi-trash3"></i></button>' +
+      '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+function openCreateOrderModal() {
+  // Populate selects
+  var cs = document.getElementById('orderCustomer');
+  cs.innerHTML = '<option value="">-- Chọn khách hàng --</option>' +
+    _customers.map(function (c) {
+      return '<option value="' + c.Customer_ID + '">' + c.Customer_Name + ' (' + c.Customer_ID + ')</option>';
+    }).join('');
+
+  var ps = document.getElementById('orderProduct');
+  ps.innerHTML = '<option value="">-- Chọn sản phẩm --</option>' +
+    _products.map(function (p) {
+      return '<option value="' + p.Product_ID + '" data-price="' + p.Price + '">' +
+        p.Product_Name + ' — ' + formatVND(p.Price) + '</option>';
+    }).join('');
+
+  document.getElementById('orderQty').value = 1;
+  document.getElementById('totalPreview').textContent = '—';
+  document.getElementById('submitOrderBtn').disabled = false;
+  _orderModal.show();
+}
+
+function updateOrderPreview() {
+  var sel = document.getElementById('orderProduct');
+  var opt = sel.options[sel.selectedIndex];
+  var price = opt && opt.dataset.price ? parseFloat(opt.dataset.price) : 0;
+  var qty = parseInt(document.getElementById('orderQty').value) || 0;
+  var total = price * qty;
+  document.getElementById('totalPreview').textContent = total > 0 ? formatVND(total) : '—';
+}
+
+function submitOrder() {
+  var customerId = document.getElementById('orderCustomer').value;
+  var productId  = document.getElementById('orderProduct').value;
+  var qty        = document.getElementById('orderQty').value;
+
+  if (!customerId) { showToast('Vui lòng chọn khách hàng.', 'warning'); return; }
+  if (!productId)  { showToast('Vui lòng chọn sản phẩm.', 'warning'); return; }
+  if (!qty || qty < 1) { showToast('Số lượng không hợp lệ.', 'warning'); return; }
+
+  var btn = document.getElementById('submitOrderBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Đang tạo...';
+
+  google.script.run
+    .withSuccessHandler(function (res) {
+      _orderModal.hide();
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-send me-1"></i>Tạo đơn hàng';
+      if (res.success) {
+        var emailMsg = res.emailSent
+          ? ' Email đã gửi thành công!'
+          : ' (Email lỗi: ' + res.emailError + ')';
+        showToast('✅ Tạo đơn ' + res.orderId + ' thành công!' + emailMsg, 'success');
+        loadOrders();
+      } else {
+        showToast('❌ Không tạo được đơn hàng.', 'danger');
+      }
+    })
+    .withFailureHandler(function (err) {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-send me-1"></i>Tạo đơn hàng';
+      handleError(err);
+    })
+    .createOrder(customerId, productId, parseInt(qty));
+}
+
+function changeOrderStatus(orderId, status) {
+  google.script.run
+    .withSuccessHandler(function () {
+      showToast('Cập nhật trạng thái thành ' + status, 'success');
+      loadOrders();
+    })
+    .withFailureHandler(handleError)
+    .updateOrderStatus(orderId, status);
+}
+
+function deleteOrderRow(orderId) {
+  confirm_('Xóa đơn hàng ' + orderId + '?', function () {
+    google.script.run
+      .withSuccessHandler(function () {
+        showToast('Đã xóa đơn ' + orderId, 'success');
+        loadOrders();
+      })
+      .withFailureHandler(handleError)
+      .deleteOrder(orderId);
+  });
+}
+
+// ============================================================
+//  CUSTOMERS
+// ============================================================
+function loadCustomers() {
+  setLoading('customersLoading', 'customerTable', true);
+  google.script.run
+    .withSuccessHandler(function (data) {
+      _customers = data;
+      renderCustomers(data);
+      setLoading('customersLoading', 'customerTable', false);
+    })
+    .withFailureHandler(function (err) {
+      setLoading('customersLoading', 'customerTable', false);
+      handleError(err);
+    })
+    .getCustomers();
+}
+
+function renderCustomers(customers) {
+  var tb = document.getElementById('customerBody');
+  if (!customers || customers.length === 0) {
+    tb.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">Chưa có khách hàng.</td></tr>';
+    return;
+  }
+  tb.innerHTML = customers.map(function (c) {
+    return '<tr>' +
+      '<td><span class="fw-semibold text-success">' + c.Customer_ID + '</span></td>' +
+      '<td>' + c.Customer_Name + '</td>' +
+      '<td>' + c.Phone + '</td>' +
+      '<td class="text-center">' + memberBadge(c.Member_Level) + '</td>' +
+      '<td class="text-center">' +
+        '<button class="btn-action edit" title="Sửa" onclick="openCustomerModal(\'' + c.Customer_ID + '\')"><i class="bi bi-pencil-square"></i></button>' +
+        '<button class="btn-action del"  title="Xóa" onclick="deleteCustomerRow(\'' + c.Customer_ID + '\')"><i class="bi bi-trash3"></i></button>' +
+      '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+function openCustomerModal(id) {
+  if (id) {
+    var c = _customers.find(function (x) { return x.Customer_ID === id; });
+    if (!c) return;
+    document.getElementById('customerModalTitle').textContent = 'Sửa khách hàng';
+    document.getElementById('custId').value    = c.Customer_ID;
+    document.getElementById('custName').value  = c.Customer_Name;
+    document.getElementById('custPhone').value = c.Phone;
+    document.getElementById('custLevel').value = c.Member_Level;
+  } else {
+    document.getElementById('customerModalTitle').textContent = 'Thêm khách hàng';
+    document.getElementById('custId').value    = '';
+    document.getElementById('custName').value  = '';
+    document.getElementById('custPhone').value = '';
+    document.getElementById('custLevel').value = 'Bronze';
+  }
+  _customerModal.show();
+}
+
+function saveCustomer() {
+  var id    = document.getElementById('custId').value.trim();
+  var name  = document.getElementById('custName').value.trim();
+  var phone = document.getElementById('custPhone').value.trim();
+  var level = document.getElementById('custLevel').value;
+
+  if (!name) { showToast('Vui lòng nhập tên khách hàng.', 'warning'); return; }
+
+  var fn = id
+    ? function () { google.script.run
+        .withSuccessHandler(function () { _customerModal.hide(); showToast('Đã cập nhật khách hàng.', 'success'); loadCustomers(); })
+        .withFailureHandler(handleError)
+        .updateCustomer(id, name, phone, level); }
+    : function () { google.script.run
+        .withSuccessHandler(function (r) { _customerModal.hide(); showToast('Đã thêm khách hàng ' + r.id, 'success'); loadCustomers(); })
+        .withFailureHandler(handleError)
+        .addCustomer(name, phone, level); };
+  fn();
+}
+
+function deleteCustomerRow(id) {
+  confirm_('Xóa khách hàng ' + id + '?', function () {
+    google.script.run
+      .withSuccessHandler(function () { showToast('Đã xóa khách hàng ' + id, 'success'); loadCustomers(); })
+      .withFailureHandler(handleError)
+      .deleteCustomer(id);
+  });
+}
+
+// ============================================================
+//  PRODUCTS
+// ============================================================
+function loadProducts() {
+  setLoading('productsLoading', 'productTable', true);
+  google.script.run
+    .withSuccessHandler(function (data) {
+      _products = data;
+      renderProducts(data);
+      setLoading('productsLoading', 'productTable', false);
+    })
+    .withFailureHandler(function (err) {
+      setLoading('productsLoading', 'productTable', false);
+      handleError(err);
+    })
+    .getProducts();
+}
+
+function renderProducts(products) {
+  var tb = document.getElementById('productBody');
+  if (!products || products.length === 0) {
+    tb.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-4">Chưa có sản phẩm.</td></tr>';
+    return;
+  }
+  tb.innerHTML = products.map(function (p) {
+    return '<tr>' +
+      '<td><span class="fw-semibold text-warning">' + p.Product_ID + '</span></td>' +
+      '<td>' + p.Product_Name + '</td>' +
+      '<td class="text-end fw-semibold">' + formatVND(p.Price) + '</td>' +
+      '<td class="text-center">' +
+        '<button class="btn-action edit" title="Sửa" onclick="openProductModal(\'' + p.Product_ID + '\')"><i class="bi bi-pencil-square"></i></button>' +
+        '<button class="btn-action del"  title="Xóa" onclick="deleteProductRow(\'' + p.Product_ID + '\')"><i class="bi bi-trash3"></i></button>' +
+      '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+function openProductModal(id) {
+  if (id) {
+    var p = _products.find(function (x) { return x.Product_ID === id; });
+    if (!p) return;
+    document.getElementById('productModalTitle').textContent = 'Sửa sản phẩm';
+    document.getElementById('prodId').value    = p.Product_ID;
+    document.getElementById('prodName').value  = p.Product_Name;
+    document.getElementById('prodPrice').value = p.Price;
+  } else {
+    document.getElementById('productModalTitle').textContent = 'Thêm sản phẩm';
+    document.getElementById('prodId').value    = '';
+    document.getElementById('prodName').value  = '';
+    document.getElementById('prodPrice').value = '';
+  }
+  _productModal.show();
+}
+
+function saveProduct() {
+  var id    = document.getElementById('prodId').value.trim();
+  var name  = document.getElementById('prodName').value.trim();
+  var price = document.getElementById('prodPrice').value;
+
+  if (!name)  { showToast('Vui lòng nhập tên sản phẩm.', 'warning'); return; }
+  if (!price || parseFloat(price) <= 0) { showToast('Vui lòng nhập giá hợp lệ.', 'warning'); return; }
+
+  var fn = id
+    ? function () { google.script.run
+        .withSuccessHandler(function () { _productModal.hide(); showToast('Đã cập nhật sản phẩm.', 'success'); loadProducts(); })
+        .withFailureHandler(handleError)
+        .updateProduct(id, name, price); }
+    : function () { google.script.run
+        .withSuccessHandler(function (r) { _productModal.hide(); showToast('Đã thêm sản phẩm ' + r.id, 'success'); loadProducts(); })
+        .withFailureHandler(handleError)
+        .addProduct(name, price); };
+  fn();
+}
+
+function deleteProductRow(id) {
+  confirm_('Xóa sản phẩm ' + id + '?', function () {
+    google.script.run
+      .withSuccessHandler(function () { showToast('Đã xóa sản phẩm ' + id, 'success'); loadProducts(); })
+      .withFailureHandler(handleError)
+      .deleteProduct(id);
+  });
+}
+</script>

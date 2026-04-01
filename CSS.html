@@ -1,0 +1,133 @@
+<style>
+/* ── Base ─────────────────────────────────────────────────────── */
+body {
+  background: #f0f2f5;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-size: 14px;
+}
+
+/* ── Navbar ───────────────────────────────────────────────────── */
+.navbar {
+  background: linear-gradient(135deg, #1a1f5e 0%, #2d3a8c 100%);
+  padding: 0.7rem 1rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+.navbar-brand { font-size: 1rem; letter-spacing: 0.02em; }
+
+/* ── Tab bar ──────────────────────────────────────────────────── */
+.tab-bar {
+  background: #fff;
+  border-bottom: 2px solid #e9ecef;
+  padding: 0;
+}
+.tab-bar .nav-link {
+  color: #6c757d;
+  border: none !important;
+  border-bottom: 3px solid transparent !important;
+  padding: 0.75rem 1.25rem;
+  font-weight: 500;
+  border-radius: 0 !important;
+  transition: all 0.2s;
+}
+.tab-bar .nav-link:hover {
+  color: #1a1f5e;
+  background: #f8f9ff;
+}
+.tab-bar .nav-link.active {
+  color: #1a1f5e !important;
+  border-bottom-color: #1a1f5e !important;
+  background: transparent;
+  font-weight: 600;
+}
+
+/* ── Table wrapper ────────────────────────────────────────────── */
+.table-wrapper {
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.08);
+  overflow: hidden;
+}
+.table { margin: 0; font-size: 13.5px; }
+.table thead th {
+  background: #f8f9ff;
+  color: #374151;
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 2px solid #e9ecef;
+  padding: 11px 14px;
+  white-space: nowrap;
+}
+.table tbody td { padding: 10px 14px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
+.table tbody tr:last-child td { border-bottom: none; }
+.table tbody tr:hover { background: #f8f9ff; }
+
+/* ── Status badges ────────────────────────────────────────────── */
+.badge-status {
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11.5px;
+  font-weight: 600;
+  display: inline-block;
+}
+.s-pending  { background:#fef3c7; color:#92400e; }
+.s-paid     { background:#d1fae5; color:#065f46; }
+.s-shipped  { background:#dbeafe; color:#1e40af; }
+.s-cancelled{ background:#fee2e2; color:#991b1b; }
+
+/* ── Member level badges ──────────────────────────────────────── */
+.badge-member {
+  padding: 2px 9px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.m-Gold     { background:#fef9c3; color:#854d0e; }
+.m-Silver   { background:#f1f5f9; color:#475569; }
+.m-Bronze   { background:#fff7ed; color:#9a3412; }
+.m-Platinum { background:#ede9fe; color:#4c1d95; }
+
+/* ── Action buttons ───────────────────────────────────────────── */
+.btn-action {
+  border: none;
+  background: none;
+  padding: 4px 7px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background 0.15s;
+}
+.btn-action:hover { background: #f0f2f5; }
+.btn-action.edit  { color: #2563eb; }
+.btn-action.del   { color: #dc2626; }
+
+/* ── Filter bar ───────────────────────────────────────────────── */
+.filter-bar { }
+
+/* ── Order preview box ────────────────────────────────────────── */
+.preview-box {
+  background: #f0f9ff;
+  border: 1.5px solid #bae6fd;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #0369a1;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+}
+
+/* ── Modal tweaks ─────────────────────────────────────────────── */
+.modal-header { background: #f8f9fa; border-bottom: 1px solid #e9ecef; }
+.form-label { font-size: 13px; margin-bottom: 4px; }
+
+/* ── Toast ────────────────────────────────────────────────────── */
+.toast { min-width: 280px; }
+.toast.bg-success .toast-body { color: #fff; }
+.toast.bg-danger  .toast-body { color: #fff; }
+
+/* ── Spinner overlay ──────────────────────────────────────────── */
+.btn-loading { position: relative; pointer-events: none; opacity: 0.75; }
+</style>

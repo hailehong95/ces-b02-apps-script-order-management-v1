@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Order Management System</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <?!= include('CSS'); ?>
+</head>
+<body>
+
+<!-- ── NAVBAR ─────────────────────────────────────────────────── -->
+<nav class="navbar navbar-dark">
+  <div class="container-fluid px-4">
+    <span class="navbar-brand mb-0 h1">
+      <i class="bi bi-bag-check-fill me-2"></i>Order Management System
+    </span>
+    <span id="navClock" class="text-white-50 small"></span>
+  </div>
+</nav>
+
+<!-- ── TABS ───────────────────────────────────────────────────── -->
+<div class="tab-bar">
+  <div class="container-fluid px-4">
+    <ul class="nav nav-tabs border-0" id="mainTabs">
+      <li class="nav-item">
+        <a class="nav-link active" data-tab="orders" href="#">
+          <i class="bi bi-cart3 me-1"></i>Đơn hàng
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" data-tab="customers" href="#">
+          <i class="bi bi-people me-1"></i>Khách hàng
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" data-tab="products" href="#">
+          <i class="bi bi-box-seam me-1"></i>Sản phẩm
+        </a>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<!-- ── MAIN CONTENT ───────────────────────────────────────────── -->
+<div class="container-fluid px-4 py-4">
+
+  <!-- Toast notification -->
+  <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index:9999;">
+    <div id="mainToast" class="toast align-items-center border-0" role="alert">
+      <div class="d-flex">
+        <div class="toast-body" id="toastMsg"></div>
+        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── TAB: ORDERS ─────────────────────────────────────────── -->
+  <div id="tab-orders" class="tab-pane">
+    <div class="d-flex align-items-center justify-content-between mb-3">
+      <h5 class="fw-bold mb-0"><i class="bi bi-cart3 me-2 text-primary"></i>Quản lý Đơn hàng</h5>
+      <button class="btn btn-primary btn-sm" onclick="openCreateOrderModal()">
+        <i class="bi bi-plus-lg me-1"></i>Tạo đơn hàng
+      </button>
+    </div>
+
+    <!-- Filter bar -->
+    <div class="filter-bar mb-3 d-flex gap-2 flex-wrap">
+      <input type="text" id="orderSearch" class="form-control form-control-sm" placeholder="🔍 Tìm kiếm..." style="max-width:220px;" oninput="filterTable('orderTable', this.value)">
+      <select id="statusFilter" class="form-select form-select-sm" style="max-width:160px;" onchange="filterOrdersByStatus()">
+        <option value="">Tất cả trạng thái</option>
+        <option>Pending</option>
+        <option>Paid</option>
+        <option>Shipped</option>
+        <option>Cancelled</option>
+      </select>
+      <button class="btn btn-outline-secondary btn-sm" onclick="loadOrders()">
+        <i class="bi bi-arrow-clockwise me-1"></i>Làm mới
+      </button>
+    </div>
+
+    <div class="table-wrapper">
+      <div id="ordersLoading" class="text-center py-4 text-muted">
+        <div class="spinner-border spinner-border-sm me-2"></div>Đang tải dữ liệu...
+      </div>
+      <table class="table table-hover align-middle mb-0 d-none" id="orderTable">
+        <thead>
+          <tr>
+            <th>Order ID</th>
+            <th>Khách hàng</th>
+            <th>Sản phẩm</th>
+            <th class="text-center">SL</th>
+            <th class="text-end">Tổng tiền</th>
+            <th class="text-center">Trạng thái</th>
+            <th>Ngày tạo</th>
+            <th class="text-center">Hành động</th>
+          </tr>
+        </thead>
+        <tbody id="orderBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── TAB: CUSTOMERS ─────────────────────────────────────── -->
+  <div id="tab-customers" class="tab-pane d-none">
+    <div class="d-flex align-items-center justify-content-between mb-3">
+      <h5 class="fw-bold mb-0"><i class="bi bi-people me-2 text-success"></i>Quản lý Khách hàng</h5>
+      <button class="btn btn-success btn-sm" onclick="openCustomerModal()">
+        <i class="bi bi-plus-lg me-1"></i>Thêm khách hàng
+      </button>
+    </div>
+    <input type="text" class="form-control form-control-sm mb-3" placeholder="🔍 Tìm kiếm..." style="max-width:260px;" oninput="filterTable('customerTable', this.value)">
+    <div class="table-wrapper">
+      <div id="customersLoading" class="text-center py-4 text-muted">
+        <div class="spinner-border spinner-border-sm me-2"></div>Đang tải dữ liệu...
+      </div>
+      <table class="table table-hover align-middle mb-0 d-none" id="customerTable">
+        <thead>
+          <tr>
+            <th>Customer ID</th>
+            <th>Tên khách hàng</th>
+            <th>Số điện thoại</th>
+            <th class="text-center">Hạng thành viên</th>
+            <th class="text-center">Hành động</th>
+          </tr>
+        </thead>
+        <tbody id="customerBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── TAB: PRODUCTS ──────────────────────────────────────── -->
+  <div id="tab-products" class="tab-pane d-none">
+    <div class="d-flex align-items-center justify-content-between mb-3">
+      <h5 class="fw-bold mb-0"><i class="bi bi-box-seam me-2 text-warning"></i>Quản lý Sản phẩm</h5>
+      <button class="btn btn-warning btn-sm text-white" onclick="openProductModal()">
+        <i class="bi bi-plus-lg me-1"></i>Thêm sản phẩm
+      </button>
+    </div>
+    <input type="text" class="form-control form-control-sm mb-3" placeholder="🔍 Tìm kiếm..." style="max-width:260px;" oninput="filterTable('productTable', this.value)">
+    <div class="table-wrapper">
+      <div id="productsLoading" class="text-center py-4 text-muted">
+        <div class="spinner-border spinner-border-sm me-2"></div>Đang tải dữ liệu...
+      </div>
+      <table class="table table-hover align-middle mb-0 d-none" id="productTable">
+        <thead>
+          <tr>
+            <th>Product ID</th>
+            <th>Tên sản phẩm</th>
+            <th class="text-end">Giá</th>
+            <th class="text-center">Hành động</th>
+          </tr>
+        </thead>
+        <tbody id="productBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- ════════════════════════════════════════════════════════════
+     MODALS
+═════════════════════════════════════════════════════════════ -->
+
+<!-- Create / Edit Customer -->
+<div class="modal fade" id="customerModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title fw-bold" id="customerModalTitle">Thêm khách hàng</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="custId">
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Tên khách hàng <span class="text-danger">*</span></label>
+          <input type="text" id="custName" class="form-control" placeholder="Nhập tên khách hàng">
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Số điện thoại</label>
+          <input type="text" id="custPhone" class="form-control" placeholder="Nhập số điện thoại">
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Hạng thành viên</label>
+          <select id="custLevel" class="form-select">
+            <option>Bronze</option>
+            <option>Silver</option>
+            <option>Gold</option>
+            <option>Platinum</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-light" data-bs-dismiss="modal">Hủy</button>
+        <button class="btn btn-success" onclick="saveCustomer()">
+          <i class="bi bi-check-lg me-1"></i>Lưu
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Create / Edit Product -->
+<div class="modal fade" id="productModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title fw-bold" id="productModalTitle">Thêm sản phẩm</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="prodId">
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Tên sản phẩm <span class="text-danger">*</span></label>
+          <input type="text" id="prodName" class="form-control" placeholder="Nhập tên sản phẩm">
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Giá (VND) <span class="text-danger">*</span></label>
+          <input type="number" id="prodPrice" class="form-control" placeholder="Nhập giá" min="0" step="1000">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-light" data-bs-dismiss="modal">Hủy</button>
+        <button class="btn btn-warning text-white" onclick="saveProduct()">
+          <i class="bi bi-check-lg me-1"></i>Lưu
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Create Order -->
+<div class="modal fade" id="orderModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title fw-bold">Tạo đơn hàng mới</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Khách hàng <span class="text-danger">*</span></label>
+            <select id="orderCustomer" class="form-select" onchange="updateOrderPreview()">
+              <option value="">-- Chọn khách hàng --</option>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Sản phẩm <span class="text-danger">*</span></label>
+            <select id="orderProduct" class="form-select" onchange="updateOrderPreview()">
+              <option value="">-- Chọn sản phẩm --</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">Số lượng <span class="text-danger">*</span></label>
+            <input type="number" id="orderQty" class="form-control" value="1" min="1" oninput="updateOrderPreview()">
+          </div>
+          <div class="col-md-8">
+            <label class="form-label fw-semibold">Tổng tiền (tự động)</label>
+            <div class="preview-box" id="totalPreview">—</div>
+          </div>
+        </div>
+        <!-- Email note -->
+        <div class="alert alert-info mt-3 mb-0 py-2 small">
+          <i class="bi bi-envelope-fill me-1"></i>
+          Sau khi tạo đơn, hệ thống sẽ tự động gửi email thông báo đến các phòng ban.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-light" data-bs-dismiss="modal">Hủy</button>
+        <button class="btn btn-primary" onclick="submitOrder()" id="submitOrderBtn">
+          <i class="bi bi-send me-1"></i>Tạo đơn hàng
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm Delete -->
+<div class="modal fade" id="confirmModal" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header border-0 pb-0">
+        <h6 class="modal-title fw-bold text-danger"><i class="bi bi-exclamation-triangle me-1"></i>Xác nhận xóa</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body pt-2" id="confirmMsg">Bạn chắc chắn muốn xóa?</div>
+      <div class="modal-footer border-0">
+        <button class="btn btn-light btn-sm" data-bs-dismiss="modal">Hủy</button>
+        <button class="btn btn-danger btn-sm" id="confirmOkBtn">Xóa</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<?!= include('JavaScript'); ?>
+
+</body>
+</html>
